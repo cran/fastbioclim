@@ -1,0 +1,37 @@
+Package: fastbioclim
+Type: Package
+Title: Scalable and Efficient Derivation of Bioclimatic Variables
+Version: 0.2.1
+Authors@R: c(person("Gonzalo E.", "Pinilla-Buitrago", 
+                    email = "gepinillab@gmail.com", 
+                    role = c("aut", "cre"),
+                    comment = c(ORCID = "0000-0002-0065-945X")),
+             person(given = "Luis", family = "Osorio-Olvera", 
+                    email = "luismurao@gmail.com", 
+                    role = c("aut"),
+                    comment = c(ORCID = "0000-0003-0701-5398")))
+Maintainer: Gonzalo E. Pinilla-Buitrago <gepinillab@gmail.com>
+Description: Provides a high-performance framework for deriving bioclimatic and custom summary variables from 
+    large-scale climate raster data. The package features a dual-backend architecture that intelligently switches 
+    between fast in-memory processing for smaller datasets (via the 'terra' package) and a memory-safe tiled approach 
+    for massive datasets that do not fit in RAM (via 'exactextractr' and 'Rfast'). The main functions, 
+    'derive_bioclim()' and 'derive_statistics()', offer a unified interface with advanced options for 
+    custom time periods and static indices, making it suitable for a wide range of ecological and 
+    environmental modeling applications. A software note is in preparation. In the meantime, you can visit 
+    the package website <https://gepinillab.github.io/fastbioclim/> to find tutorials in English and Spanish.
+License: GPL (>= 3)
+URL: https://gepinillab.github.io/fastbioclim/
+BugReports: https://github.com/gepinillab/fastbioclim/issues
+Encoding: UTF-8
+RoxygenNote: 7.3.2
+Depends: R (>= 4.1)
+Imports: exactextractr, future.apply, glue, progressr, purrr, qs,
+        Rfast, rlang, sf, terra (>= 1.7-0)
+NeedsCompilation: no
+Packaged: 2025-09-02 17:37:29 UTC; gepb
+Author: Gonzalo E. Pinilla-Buitrago [aut, cre] (ORCID:
+    <https://orcid.org/0000-0002-0065-945X>),
+  Luis Osorio-Olvera [aut] (ORCID:
+    <https://orcid.org/0000-0003-0701-5398>)
+Repository: CRAN
+Date/Publication: 2025-09-08 19:10:02 UTC
