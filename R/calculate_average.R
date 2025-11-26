@@ -18,7 +18,7 @@
 #' @param tile_degrees (Tiled method only) The approximate size of processing tiles.
 #' @param gdal_opt (Optional) GDAL creation options for the output GeoTIFFs.
 #' @param overwrite Logical. If `FALSE` (default), stops if output files exist.
-#'
+#' @param verbose Logical, If `TRUE`, prints messages.
 #' @return A `terra::SpatRaster` object pointing to the newly created files.
 #' @export
 calculate_average <- function(x,
@@ -29,17 +29,18 @@ calculate_average <- function(x,
                               method = c("auto", "tiled", "terra"),
                               tile_degrees = 5,
                               gdal_opt = c("COMPRESS=DEFLATE", "PREDICTOR=3", "NUM_THREADS=ALL_CPUS"),
-                              overwrite = FALSE) {
+                              overwrite = FALSE,
+                              verbose = TRUE) {
   
   # --- 1. Argument Validation and Setup ---
   method <- match.arg(method)
-  if (!inherits(x, "SpatRaster")) rlang::abort("Input 'x' must be a SpatRaster.")
+  if (!inherits(x, "SpatRaster")) stop("Input 'x' must be a SpatRaster.")
   n_in <- nlyr(x)
   
   # Validate index
-  if (missing(index) || !is.numeric(index)) rlang::abort("A numeric 'index' vector is required.")
+  if (missing(index) || !is.numeric(index)) stop("A numeric 'index' vector is required.")
   if (length(index) != n_in) {
-    rlang::abort(glue::glue("Length of 'index' ({length(index)}) must match number of layers in 'x' ({n_in})."))
+    stop(glue::glue("Length of 'index' ({length(index)}) must match number of layers in 'x' ({n_in})."))
   }
   
   unique_groups <- sort(unique(index))
@@ -60,10 +61,7 @@ calculate_average <- function(x,
   if (!overwrite) {
     expected_filepaths <- file.path(output_dir, paste0(output_names, ".tif"))
     if (any(file.exists(expected_filepaths))) {
-      rlang::abort(
-        c("Output files already exist and `overwrite` is FALSE.",
-          "i" = "To proceed, set `overwrite = TRUE` or remove the existing files.")
-      )
+      stop("Output files already exist and `overwrite` is FALSE.")
     }
   }
   
@@ -71,27 +69,27 @@ calculate_average <- function(x,
   use_terra_workflow <- FALSE
   if (method == "terra") {
     use_terra_workflow <- TRUE
-    rlang::inform("User forced 'terra' (in-memory) workflow.")
+    if (verbose) message("User forced 'terra' (in-memory) workflow.")
   } else if (method == "tiled") {
     use_terra_workflow <- FALSE
-    rlang::inform("User forced 'tiled' (out-of-core) workflow.")
+    if (verbose) message("User forced 'tiled' workflow.")
   } else { # "auto"
-    rlang::inform("Using 'auto' method to select workflow...")
+    if (verbose) message("Using 'auto' method to select workflow...")
     template_rast <- if (is.null(user_region)) x[[1]] else crop(x[[1]], user_region)
     mem_info <- terra::mem_info(template_rast, n = nlyr(x) + n_units_out, print = FALSE)
     if (mem_info["fits_mem"] == 1) {
       use_terra_workflow <- TRUE
-      rlang::inform("Data appears to fit in memory. Selecting 'terra' workflow.")
+      if (verbose) message("Data appears to fit in memory. Selecting 'terra' workflow.")
     } else {
       use_terra_workflow <- FALSE
-      rlang::inform("Data is too large for memory. Selecting 'tiled' workflow.")
+      if (verbose) message("Data is too large for memory. Selecting 'tiled' workflow.")
     }
   }
   
   # --- 4. Delegate to the Correct Workflow ---
   if (use_terra_workflow) {
     final_raster <- if (!is.null(user_region)) {
-      rlang::inform("Performing crop operation for 'terra' workflow...")
+      if (verbose) message("Performing crop operation for 'terra' workflow...")
       terra::crop(x, user_region, mask = TRUE)
     } else {
       x
@@ -103,12 +101,13 @@ calculate_average <- function(x,
       output_names = output_names,
       output_dir = output_dir,
       gdal_opt = gdal_opt,
-      overwrite = overwrite
+      overwrite = overwrite,
+      verbose = verbose
     )
     
   } else { # Tiled workflow
     if (all(terra::inMemory(x))) {
-      rlang::abort("The 'tiled' workflow requires the input SpatRaster to point to a file on disk.")
+      stop("The 'tiled' workflow requires the input SpatRaster to point to a file on disk.")
     }
     
     temp_qs_dir <- average_fast(
@@ -117,7 +116,8 @@ calculate_average <- function(x,
       output_names = output_names,
       user_region = user_region,
       tile_degrees = tile_degrees,
-      output_dir = output_dir # Pass main output dir to create temp dir inside
+      output_dir = output_dir,
+      verbose = verbose
     )
     
     # Use write_layers to assemble the results
@@ -126,9 +126,10 @@ calculate_average <- function(x,
       output_dir = output_dir,
       file_pattern = suffix_name,
       gdal_opt = gdal_opt,
-      overwrite = overwrite
+      overwrite = overwrite,
+      verbose = verbose
     )
   }
-  rlang::inform(paste("Processing complete. Final rasters are in:", normalizePath(output_dir)))
+  if (verbose) message(paste("Processing complete. Final rasters are in:", normalizePath(output_dir)))
   return(terra::rast(result_paths))
 }

@@ -33,11 +33,7 @@ get_window <- function(x, period, circular)  {
     m <- matrix(ncol = period, nrow = lng)
     for (i in 1:period) {
       m[, i] <- ind[i:(lng + i - 1)]
-      # if (i != 3) {
-      #   m[, i] <- ind[i:(lng + i - 1)]
-      # } else {
-      #   m[, i] <- ind[(i - 1):(lng + i - 2)]
-      # }
+      
     }
   }
   if (circular == FALSE) {
@@ -63,30 +59,6 @@ testGeom <- function(x, y) {
   }
 }
 
-#' @keywords internal
-mismatch_NA <- function(layer) {
-  # Get number of layers
-  num_lyr <- terra::nlyr(layer)
-  # Create a raster that sums if cells has values for all of them
-  sum_lyr <- sum(!is.na(layer))
-  # Create vector to check if there is a mismatch between NAs
-  v_unique <- unique(as.vector(sum_lyr))
-  # Check for cell values lower than the number of layers. This means that there
-  # are cells with NA values
-  if (any(v_unique != 0 & v_unique != num_lyr)) {
-    miss_na <- v_unique[v_unique != 0 & v_unique != num_lyr]
-    cells_na <- unlist(terra::cells(sum_lyr, miss_na))
-    layer_na <- sapply(as.list(cells_na),
-                       function(x) {which(is.na(extract(layer, x)))})
-    message(paste0("Unexpected NA value in '", substitute(layer), "' object",
-                   " | Layer number: ", layer_na,
-                   " | Cell ID: ", cells_na, "\n"))
-
-  }
-  return(list(logical = any(v_unique != 0 & v_unique != num_lyr),
-              sum_lyr = sum_lyr))
-}
-
 #' @title Print Bioclimatic Variable Names
 #' @description
 #' This function prints the names of bioclimatic variables based on the specified indices.
@@ -100,36 +72,36 @@ mismatch_NA <- function(layer) {
 bionames <- function(bios = 1:35) {
   # Bioclimatic variable names
   bioclim_vars <- c(
-    "bio01: Annual Mean Temperature",
+    "bio01: Mean Temperature of Units",
     "bio02: Mean Diurnal Range",
     "bio03: Isothermality",
     "bio04: Temperature Seasonality",
-    "bio05: Max Temperature of Warmest Period",
-    "bio06: Min Temperature of Coldest Period",
-    "bio07: Temperature Annual Range",
+    "bio05: Max Temperature of Warmest Unit",
+    "bio06: Min Temperature of Coldest Unit",
+    "bio07: Temperature Range of Units",
     "bio08: Mean Temperature of Wettest Period",
     "bio09: Mean Temperature of Driest Period",
     "bio10: Mean Temperature of Warmest Period",
     "bio11: Mean Temperature of Coldest Period",
-    "bio12: Annual Precipitation",
-    "bio13: Precipitation of Wettest Period",
-    "bio14: Precipitation of Driest Period",
+    "bio12: Precipitation Sum",
+    "bio13: Precipitation of Wettest Unit",
+    "bio14: Precipitation of Driest Unit",
     "bio15: Precipitation Seasonality",
     "bio16: Precipitation of Wettest Period",
     "bio17: Precipitation of Driest Period",
     "bio18: Precipitation of Warmest Period",
     "bio19: Precipitation of Coldest Period",
     "bio20: Annual Mean Radiation",
-    "bio21: Highest Period Radiation",
-    "bio22: Lowest Period Radiation",
+    "bio21: Highest Radiation Unit",
+    "bio22: Lowest Radiation Unit",
     "bio23: Radiation Seasonality",
     "bio24: Radiation of Wettest Period",
     "bio25: Radiation of Driest Period",
     "bio26: Radiation of Warmest Period",
     "bio27: Radiation of Coldest Period",
-    "bio28: Annual Mean Moisture Content",
-    "bio29: Highest Period Moisture Content",
-    "bio30: Lowest Period Moisture Content",
+    "bio28: Mean Moisture Content of Units",
+    "bio29: Highest Moisture Content Unit",
+    "bio30: Lowest Moisture Content Unit",
     "bio31: Moisture Content Seasonality",
     "bio32: Mean Moisture Content of Most Moist Period",
     "bio33: Mean Moisture Content of Least Moist Period",
@@ -145,12 +117,6 @@ bionames <- function(bios = 1:35) {
   # Print the selected variable names
   cat(bioclim_vars[bios], sep = "\n")
 }
-
-# ======================================================================
-
-# FAST mode
-
-# --- Core Helper Functions ---
 
 `%||%` <- function(x, y) { if (is.null(x)) y else x }
 
@@ -175,7 +141,6 @@ check_evar <- function(evar){
     names_col <- names(evar)
     evar <- t(evar) # Transpose vector to a 1-row matrix
   }
-  # Add check if it's already a matrix? - Assumed handled if not df or vector
   colnames(evar) <- names_col
 
   return(evar)

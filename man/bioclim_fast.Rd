@@ -18,6 +18,7 @@ bioclim_fast(
   user_region = NULL,
   tile_degrees = 5,
   output_dir = tempdir(),
+  verbose = TRUE,
   ...
 )
 }
@@ -36,12 +37,14 @@ bioclim_fast(
 
 \item{output_dir}{Character, path for temporary files.}
 
+\item{verbose}{Logical, If `TRUE`, prints messages.}
+
 \item{...}{File paths for climate variables (e.g., `tmin_path`) and static
 indices (e.g., `warmest_period_path`).}
 }
 \value{
 Character string: Path to the temporary directory containing
-  intermediate `.qs` files, to be used by an assembly function.
+  intermediate `.qs2` files, to be used by an assembly function.
 }
 \description{
 Internal function to calculate bioclimatic variables for very large datasets

@@ -1,13 +1,13 @@
 #' Tiled, Out-of-Core Time Series Averaging (Internal)
 #' @keywords internal
-average_fast <- function(paths, index, output_names, user_region, tile_degrees, output_dir) {
+average_fast <- function(paths, index, output_names, user_region, tile_degrees, output_dir, verbose) {
   
   # --- 1. Setup Environment ---
   qs_dir <- file.path(output_dir, paste0("avg_qs_", basename(tempfile(pattern = ""))))
   dir.create(qs_dir, recursive = TRUE)
   # --- 2. Define Processing Region and Replicate Full Geometry Logic ---
   # --- Check Geometry Consistency ---
-  message("Checking geometry of input rasters...")
+  if (verbose) message("Checking geometry of input rasters...")
   tryCatch({
     ref_rast <- terra::rast(paths[1])
     ref_crs <- terra::crs(ref_rast)
@@ -29,7 +29,7 @@ average_fast <- function(paths, index, output_names, user_region, tile_degrees, 
   # --- 3. Define Processing Region ---
   base_map <- NULL
   if (!is.null(user_region)) {
-    message("Using user-provided region.")
+    if (verbose) message("Using user-provided region.")
     if (inherits(user_region, "SpatVector")) base_map <- sf::st_as_sf(user_region)
     else if (inherits(user_region, "sf") || inherits(user_region, "sfc")) base_map <- sf::st_as_sf(sf::st_geometry(user_region))
     else stop("'user_region' must be an sf object or a terra SpatVector.")
@@ -48,7 +48,7 @@ average_fast <- function(paths, index, output_names, user_region, tile_degrees, 
       }
         
     } else {
-      message("No user_region provided. Using the full extent of input rasters.")
+      if (verbose) message("No user_region provided. Using the full extent of input rasters.")
       # Create an sf polygon from the raster extent obtained earlier
       base_map <- sf::st_as_sf(sf::st_as_sfc(sf::st_bbox(ref_ext), crs = ref_crs))
     }
@@ -134,9 +134,9 @@ average_fast <- function(paths, index, output_names, user_region, tile_degrees, 
   }
     
   # Save the template info within that directory
-  template_info_file <- file.path(qs_dir, "template_info.qs")
+  template_info_file <- file.path(qs_dir, "template_info.qs2")
   tryCatch({
-    qs::qsave(template_info, template_info_file)
+    qs2::qs_save(template_info, template_info_file)
   }, error = function(e){
     stop("Failed to save template geometry information: ", e$message)
   })
@@ -154,7 +154,7 @@ average_fast <- function(paths, index, output_names, user_region, tile_degrees, 
   rtt <- rtt[!sf::st_is_empty(rtt),]
   ntiles <- nrow(rtt)
   if (ntiles == 0) stop("No overlapping tiles found for the processing area.")
-  message("Rasters divided into ", ntiles, " tiles for processing.")
+  if (verbose) message(glue::glue("Rasters divided into {ntiles} tiles for processing."))
   
   # --- 4. Parallel Processing ---
   p <- progressr::progressor(steps = ntiles)
@@ -163,12 +163,12 @@ average_fast <- function(paths, index, output_names, user_region, tile_degrees, 
   export_vars <- c("paths", "path_variables", "rtt", "ntiles", "unique_indices", 
                    "n_units_out", "output_names", "qs_dir", "translate_cell")
   future.apply::future_lapply(seq_len(ntiles), function(i) {
-    p(message = sprintf("Processing tile %d/%d", i, ntiles))
+    p(message = glue::glue("Processing tile {i}/{ntiles}"))
     tile_geom <- sf::st_geometry(rtt[i, ])
     
     evars_stack_tile <- tryCatch({ terra::rast(paths) }, error = function(e) { NULL })
         if (is.null(evars_stack_tile)) { 
-          warning(sprintf("Tile %d: Failed load", i))
+          warning(glue::glue("Tile {i}: Failed load"))
           return(NULL)
         }
 
@@ -189,7 +189,7 @@ average_fast <- function(paths, index, output_names, user_region, tile_degrees, 
     }
     value_cols <- names(df)[!names(df) %in% c("cell", "coverage_fraction")]
     pixel_matrix <- Rfast::data.frame.to_matrix(df[nonaID[noMap], value_cols, drop = FALSE])
-    # Calculate average for each output group and save it to a separate .qs file
+    # Calculate average for each output group and save it to a separate .qs2 file
     for (j in 1:n_units_out) {
       current_idx_val <- unique_indices[j]
       current_output_name <- output_names[j]
@@ -199,15 +199,15 @@ average_fast <- function(paths, index, output_names, user_region, tile_degrees, 
       
       # Create 2-column data frame that write_layers expects: value, cell
       tile_result <- data.frame(value = avg_values, cell = cell_ids_source)
-      # Filename format: [variable_name]_[tile_number].qs
-      qs_filename <- file.path(qs_dir, paste0(current_output_name, "_", i, ".qs"))
-      qs::qsave(tile_result, qs_filename)
+      # Filename format: [variable_name]_[tile_number].qs2
+      qs_filename <- file.path(qs_dir, paste0(current_output_name, "_", i, ".qs2"))
+      qs2::qs_save(tile_result, qs_filename)
     }
     return(NULL)
   }, 
   future.seed = TRUE, future.globals = export_vars,
-  future.packages = c("terra", "exactextractr", "Rfast", "qs", "sf"))
+  future.packages = c("terra", "exactextractr", "Rfast", "qs2", "sf"))
   
-  rlang::inform("Tiled computation finished. Assembly will be handled by write_layers.")
+  if (verbose) message("Tiled computation finished. Assembly will be handled by write_layers.")
   return(qs_dir)
 }

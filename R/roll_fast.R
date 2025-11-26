@@ -1,13 +1,13 @@
-#' Tiled, Out-of-Core Rolling Time Series Averaging (Internal) - CORRECTED
+#' Tiled, Out-of-Core Rolling Time Series Averaging (Internal)
 #' @keywords internal
-roll_fast <- function(paths, window_size, freq, step, fun, output_names_list, user_region, tile_degrees, output_dir) {
+roll_fast <- function(paths, window_size, freq, step, fun, output_names_list, user_region, tile_degrees, output_dir, verbose) {
   
   # --- 1. Setup Environment ---
   qs_dir <- file.path(output_dir, paste0("roll_avg_qs_", basename(tempfile(pattern = ""))))
   dir.create(qs_dir, recursive = TRUE)
 
   # --- 2. Geometry, Region, and Tiling Setup ---
-  message("Checking geometry of input rasters...")
+  if (verbose) message("Checking geometry of input rasters...")
   tryCatch({
     ref_rast <- terra::rast(paths[1])
     ref_crs <- terra::crs(ref_rast)
@@ -27,7 +27,7 @@ roll_fast <- function(paths, window_size, freq, step, fun, output_names_list, us
   rm(ref_rast)
   base_map <- NULL
   if (!is.null(user_region)) {
-    message("Using user-provided region.")
+    if (verbose) message("Using user-provided region.")
     if (inherits(user_region, "SpatVector")) base_map <- sf::st_as_sf(user_region)
     else if (inherits(user_region, "sf") || inherits(user_region, "sfc")) base_map <- sf::st_as_sf(sf::st_geometry(user_region))
     else stop("'user_region' must be an sf object or a terra SpatVector.")
@@ -42,7 +42,7 @@ roll_fast <- function(paths, window_size, freq, step, fun, output_names_list, us
           stop("Provided user_region does not overlap with the extent of the input rasters.")
       }
     } else {
-      message("No user_region provided. Using the full extent of input rasters.")
+      if (verbose) message("No user_region provided. Using the full extent of input rasters.")
       base_map <- sf::st_as_sf(sf::st_as_sfc(sf::st_bbox(ref_ext), crs = ref_crs))
     }
     ref_rast_geom <- terra::rast(paths[1])
@@ -112,9 +112,9 @@ roll_fast <- function(paths, window_size, freq, step, fun, output_names_list, us
       col_offset = col_offset
     )
   }
-  template_info_file <- file.path(qs_dir, "template_info.qs")
+  template_info_file <- file.path(qs_dir, "template_info.qs2")
   tryCatch({
-    qs::qsave(template_info, template_info_file)
+    qs2::qs_save(template_info, template_info_file)
   }, error = function(e){
     stop("Failed to save template geometry information: ", e$message)
   })
@@ -129,7 +129,7 @@ roll_fast <- function(paths, window_size, freq, step, fun, output_names_list, us
   rtt <- rtt[!sf::st_is_empty(rtt),]
   ntiles <- nrow(rtt)
   if (ntiles == 0) stop("No overlapping tiles found for the processing area.")
-  message("Rasters divided into ", ntiles, " tiles for processing.")
+  if (verbose) message("Rasters divided into ", ntiles, " tiles for processing.")
 
 
   # --- 4. Parallel Processing ---
@@ -142,10 +142,9 @@ roll_fast <- function(paths, window_size, freq, step, fun, output_names_list, us
                    "start_units", "output_names_list", "qs_dir", "translate_cell", "user_region")
 
   future.apply::future_lapply(seq_len(ntiles), function(i) {
-    p(message = sprintf("Processing tile %d/%d", i, ntiles))
+    p(message = glue::glue("Processing tile {i}/{ntiles}"))
     tile_geom <- sf::st_geometry(rtt[i, ])
 
-    # Lógica de extracción idéntica a la tuya
     evars_stack_tile <- tryCatch({ terra::rast(paths) }, error = function(e) NULL)
     if (is.null(evars_stack_tile)) return(NULL)
     extracted <- tryCatch(
@@ -170,7 +169,6 @@ roll_fast <- function(paths, window_size, freq, step, fun, output_names_list, us
       pixel_matrix <- Rfast::data.frame.to_matrix(df[nonaID, value_cols, drop = FALSE])
     }
     
-    # *** LÓGICA CORREGIDA PARA EL PROMEDIO MÓVIL ***
     for (win_idx in seq_along(start_units)) {
       start_y <- start_units[win_idx]
       end_y <- start_y + window_size - 1
@@ -180,34 +178,29 @@ roll_fast <- function(paths, window_size, freq, step, fun, output_names_list, us
       
       window_pixel_matrix <- pixel_matrix[, start_col_idx:end_col_idx, drop = FALSE]
       
-      # *** INICIO DEL BLOQUE CORREGIDO ***
-      # Usaremos un bucle (pequeño, de 1 a freq) y Rfast::rowmeans/rowsums
-      
       period_results <- vector("list", freq)
       
       for (p_idx in 1:freq) {
-        # Obtener las columnas para este período (ej. todos los eneros de la ventana)
+        # Obtain colums for this period (e.g., All januaries of this period)
         period_cols <- seq(from = p_idx, to = ncol(window_pixel_matrix), by = freq)
         
-        # Subconjunto de la matriz de la ventana para este período
+        # Subset of the window for teh particular period
         period_matrix <- window_pixel_matrix[, period_cols, drop = FALSE]
         
-        # Calcular la estadística usando una función Rfast existente y rápida
+        # Get stast
         if (fun == "mean") {
           period_results[[p_idx]] <- Rfast::rowmeans(period_matrix)
         } else if (fun == "sum") {
           period_results[[p_idx]] <- Rfast::rowsums(period_matrix)
         } else {
-          # Fallback para otras funciones (un poco más lento)
+          # I leave this for potentially new functions
           period_results[[p_idx]] <- apply(period_matrix, 1, FUN = fun, na.rm = TRUE)
         }
       }
       
-      # Combinar los vectores de resultados en una matriz
+      # Coombine result vectors in one matrix
       avg_matrix_for_window <- do.call(cbind, period_results)
       
-      # *** FIN DEL BLOQUE CORREGIDO ***
-
       output_names_for_window <- output_names_list[[win_idx]]
       
       for (p_idx in 1:freq) {
@@ -215,15 +208,15 @@ roll_fast <- function(paths, window_size, freq, step, fun, output_names_list, us
         avg_values <- avg_matrix_for_window[, p_idx]
         
         tile_result <- data.frame(value = avg_values, cell = cell_ids_source)
-        qs_filename <- file.path(qs_dir, paste0(current_output_name, "_", i, ".qs"))
-        qs::qsave(tile_result, qs_filename)
+        qs_filename <- file.path(qs_dir, paste0(current_output_name, "_", i, ".qs2"))
+        qs2::qs_save(tile_result, qs_filename)
       }
     }
     return(NULL)
   }, 
   future.seed = TRUE, future.globals = export_vars,
-  future.packages = c("terra", "exactextractr", "Rfast", "qs", "sf", "rlang", "glue"))
+  future.packages = c("terra", "exactextractr", "Rfast", "qs2", "sf", "glue"))
   
-  rlang::inform("Tiled computation finished. Assembly will be handled by write_layers.")
+  if (verbose) message("Tiled computation finished. Assembly will be handled by write_layers.")
   return(qs_dir)
 }

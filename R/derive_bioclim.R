@@ -57,6 +57,7 @@
 #'   output GeoTIFF files. Controls compression, threading, etc.
 #' @param overwrite (Optional) Logical. If `FALSE` (the default), the function will
 #'   stop immediately if any target output files already exist.
+#' @param verbose Logical, If `TRUE`, prints messages.
 #' @param ... Additional arguments, primarily for passing static index rasters. See
 #'   the "Static Indices" section for details.
 #'
@@ -134,6 +135,7 @@ derive_bioclim <- function(bios,
   tile_degrees = 5,
   gdal_opt = c("COMPRESS=DEFLATE", "PREDICTOR=3", "NUM_THREADS=ALL_CPUS"),
   overwrite = FALSE,
+  verbose = TRUE,
   ...) {
 
   # --- 1. Argument Capture and Initial Setup ---
@@ -141,16 +143,27 @@ derive_bioclim <- function(bios,
   dot_args <- list(...)
 
   # --- 2. Fail-Fast Pre-Check for Existing Files ---
+  expected_filenames <- paste0("bio", sprintf("%02d", sort(unique(bios))), ".tif")
+  expected_filepaths <- file.path(output_dir, expected_filenames)
+  existing_files <- expected_filepaths[file.exists(expected_filepaths)]
   if (!overwrite) {
-    expected_filenames <- paste0("bio", sprintf("%02d", sort(unique(bios))), ".tif")
-    expected_filepaths <- file.path(output_dir, expected_filenames)
-    existing_files <- expected_filepaths[file.exists(expected_filepaths)]
     if (length(existing_files) > 0) {
-      rlang::abort(
+      stop(
         c("Output files already exist and `overwrite` is FALSE.",
           "i" = "The following files would be overwritten:",
           "*" = paste(basename(existing_files), collapse = ", "),
           "i" = "To proceed, set `overwrite = TRUE` or remove these files manually."))
+    }
+  } else {
+    if (length(existing_files) > 0) {
+      warning(
+        c("Overwriting existing files in the output directory.",
+          "i" = "The following files will be replaced:",
+          "*" = paste(basename(existing_files), collapse = ", "),
+          "!" = "CAUTION: If this run uses a different context (e.g., a new spatial extent or time period) than a previous run, you will be altering the source files for those results (whcih could be another R object already created).",
+          "i" = "To ensure data integrity, it is strongly recommended to use a new, empty `output_dir` for each distinct analysis (e.g., extent or period)."
+        )
+      )
     }
   }
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
@@ -169,11 +182,11 @@ derive_bioclim <- function(bios,
   other_args <- dot_args[!names(dot_args) %in% valid_static_indices]
   is_spat_rast <- sapply(static_index_rasters, inherits, "SpatRaster")
   if (length(static_index_rasters) > 0 && !all(is_spat_rast)) {
-    rlang::abort("All static indices provided via '...' must be SpatRaster objects.")
+    stop("All static indices provided via '...' must be SpatRaster objects.")
   }
 
   all_input_rasters <- c(input_rasters, static_index_rasters)
-  if (length(all_input_rasters) == 0) rlang::abort("No input SpatRaster objects were provided.")
+  if (length(all_input_rasters) == 0) stop("No input SpatRaster objects were provided.")
 
   full_raster_stack <- do.call(c, all_input_rasters)
 
@@ -181,26 +194,26 @@ derive_bioclim <- function(bios,
   use_terra_workflow <- FALSE
   if (method == "terra") {
     use_terra_workflow <- TRUE
-    rlang::inform("User forced 'terra' workflow.")
+    if (verbose) message("User forced 'terra' workflow.")
   } else if (method == "tiled") {
     use_terra_workflow <- FALSE
-    rlang::inform("User forced 'tiled' workflow.")
+    if (verbose) message("User forced 'tiled' workflow.")
   } else { # "auto"
-    rlang::inform("Using 'auto' method to select workflow...")
+    if (verbose) message("Using 'auto' method to select workflow...")
     if (is.null(user_region)) {
       check_terra_workflow <- terra::mem_info(full_raster_stack[[1]], 
                                               n = length(full_raster_stack) * terra::nlyr(full_raster_stack[[1]]),
                                               print = FALSE)
       use_terra_workflow <- check_terra_workflow["fits_mem"] == 1
       if (use_terra_workflow) {
-        rlang::inform("Full rasters appear to fit in memory. Selecting 'terra' workflow.")
+        if (verbose) message("Full rasters appear to fit in memory. Selecting 'terra' workflow.")
       } else {
-        rlang::inform("Full rasters are too large for memory. Selecting 'tiled' workflow.")
+        if (verbose) message("Full rasters are too large for memory. Selecting 'tiled' workflow.")
       }
     } else {
       template_rast <- full_raster_stack[[1]][[1]]
       if (!terra::relate(terra::ext(user_region), terra::ext(template_rast), "intersects")) {
-        rlang::abort("The provided 'user_region' does not overlap with the input rasters.")
+        stop("The provided 'user_region' does not overlap with the input rasters.")
       }
       prop_raster <- terra::crop(template_rast, terra::ext(user_region))
       mem_needed_gb <- terra::mem_info(prop_raster, 
@@ -208,10 +221,10 @@ derive_bioclim <- function(bios,
                                        print = FALSE)
       if (mem_needed_gb["fits_mem"] == 1) {
         use_terra_workflow <- TRUE
-        rlang::inform("Estimated cropped region appears to fit in memory. Selecting 'terra' workflow.")
+        if (verbose) message("Estimated cropped region appears to fit in memory. Selecting 'terra' workflow.")
       } else {
         use_terra_workflow <- FALSE
-        rlang::inform("Estimated cropped region is likely too large for memory. Selecting 'tiled' workflow.")
+        if (verbose) message("Estimated cropped region is likely too large for memory. Selecting 'tiled' workflow.")
       }
     }
   }
@@ -219,7 +232,7 @@ derive_bioclim <- function(bios,
   # --- 5. Warn about Misused Arguments ---
   if (use_terra_workflow) {
     if (!missing(tile_degrees)) {
-      rlang::warn("The 'tile_degrees' argument is ignored because the 'terra' workflow was selected.")
+      warning("The 'tile_degrees' argument is ignored because the 'terra' workflow was selected.")
     }
   }
 
@@ -227,19 +240,19 @@ derive_bioclim <- function(bios,
   if (use_terra_workflow) {
     final_rasters <- all_input_rasters
     if (!is.null(user_region)) {
-      rlang::inform("Performing crop operation for 'terra' workflow...")
+      if (verbose) message("Performing crop operation for 'terra' workflow...")
       final_rasters <- lapply(all_input_rasters, function(r) terra::crop(r, user_region, mask = TRUE))
     }
     call_args_terra <- c(list(bios = bios, output_dir = output_dir, period_length = period_length, circular = circular,
-        gdal_opt = gdal_opt, overwrite = overwrite), final_rasters, other_args)
+        gdal_opt = gdal_opt, overwrite = overwrite, verbose = verbose), final_rasters, other_args)
     bioclim_results <- do.call(bioclim_terra, call_args_terra)
   } else { # Tiled workflow
     if (any(unlist(sapply(all_input_rasters, terra::inMemory, simplify = FALSE)))) {
-      rlang::abort(
+      stop(
         c("The 'tiled' workflow requires all input SpatRasters (including static indices) to point to files on disk.",
           "i" = "Please save any in-memory rasters to disk first or use `method = 'terra'` if they are small enough."))
     }
-    rlang::inform("Extracting file paths from SpatRasters for tiled workflow.")
+    if (verbose) message("Extracting file paths from SpatRasters for tiled workflow.")
     input_paths <- lapply(input_rasters, terra::sources)
     static_index_paths <- list()
     if (length(static_index_rasters) > 0) {
@@ -251,7 +264,7 @@ derive_bioclim <- function(bios,
     }
     n_units <- terra::nlyr(input_rasters[[1]])
     call_args_tiled <- c(list(bios = bios, n_units = n_units, period_length = period_length, circular = circular,
-                              user_region = user_region, tile_degrees = tile_degrees, output_dir = output_dir),
+                              user_region = user_region, tile_degrees = tile_degrees, output_dir = output_dir, verbose = verbose),
                               input_paths, static_index_paths, other_args)
     temp_results_dir <- do.call(bioclim_fast, call_args_tiled)
     bioclim_results <- write_layers(
@@ -259,8 +272,9 @@ derive_bioclim <- function(bios,
       output_dir = output_dir, 
       file_pattern = "bio",
       gdal_opt = gdal_opt, 
-      overwrite = overwrite)
+      overwrite = overwrite,
+      verbose = verbose)
   }
-  rlang::inform(paste("Processing complete. Final rasters are in:", normalizePath(output_dir)))
+  if (verbose) message(paste("Processing complete. Final rasters are in:", normalizePath(output_dir)))
   return(terra::rast(bioclim_results))
 }

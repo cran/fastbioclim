@@ -26,6 +26,7 @@ stats_fast(
   tile_degrees = 5,
   output_dir = tempdir(),
   write_raw_vars = FALSE,
+  verbose = TRUE,
   ...
 )
 }
@@ -43,7 +44,7 @@ static index paths, etc.}
 }
 \value{
 Character string: Path to the temporary directory containing
-  intermediate `.qs` files.
+  intermediate `.qs2` files.
 }
 \description{
 Internal function to calculate custom summary statistics for very large datasets
