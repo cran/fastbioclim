@@ -2,7 +2,7 @@ Package: fastbioclim
 Type: Package
 Title: Scalable and Flexible Derivation of Custom-Time Bioclimatic and
         Environmental Summary Variables
-Version: 0.4.1
+Version: 0.4.2
 Authors@R: c(person("Gonzalo E.", "Pinilla-Buitrago", 
                     email = "gepinillab@gmail.com", 
                     role = c("aut", "cre"),
@@ -32,10 +32,10 @@ Imports: exactextractr, future.apply, glue, progressr, purrr, qs2,
 Suggests: mockery, testthat (>= 3.0.0), withr
 Config/testthat/edition: 3
 NeedsCompilation: no
-Packaged: 2026-03-09 21:35:32 UTC; Gonzalo
+Packaged: 2026-05-08 16:41:58 UTC; Gonzalo
 Author: Gonzalo E. Pinilla-Buitrago [aut, cre] (ORCID:
     <https://orcid.org/0000-0002-0065-945X>),
   Luis Osorio-Olvera [aut] (ORCID:
     <https://orcid.org/0000-0003-0701-5398>)
 Repository: CRAN
-Date/Publication: 2026-03-10 09:40:26 UTC
+Date/Publication: 2026-05-08 17:11:01 UTC

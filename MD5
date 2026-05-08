@@ -1,6 +1,6 @@
-b71ac10d13369d04bb0a656cd7d000ad *DESCRIPTION
+5ac4e2f37972cc5272f4c83db9f7f567 *DESCRIPTION
 a088d8d21226634eef097cada38b122c *NAMESPACE
-742bf6ea7952404daf4ccfbce226c2ea *NEWS.md
+1e05132f4571989466f9f2be51ea0739 *NEWS.md
 4c37ae6ae5452d498cfe1e8755679500 *R/aggregate_fast.R
 56a3f256884c64739620e1c718711a28 *R/aggregate_terra.R
 c59e32f7861d2ff1b667d2027e7e68d8 *R/bioclim_fast.R
@@ -19,7 +19,8 @@ a7110ca6ecc27fb91e0b2d8c77ac782f *R/roll_fast.R
 e79f13cc7aa34a1663b2e656f2f61103 *R/stats_fast.R
 49124552a0e478e499ad254b49cd2969 *R/stats_terra.R
 6b4e5ac66eceb8ce39c3618403cf6fd0 *R/write_layers.R
-85e360ab04d7af4e4aad86458cbc0b78 *README.md
+29eaf2c126829a799361195627f5e151 *README.md
+cb27b1543e03b75743a2572b86ead85b *inst/CITATION
 2bf86adbf66b06ba51c7fbef98c68be3 *inst/extdata/prcp.tif
 412ed21e7b660afd259231d328c0b8bd *man/aggregate_fast.Rd
 bc50795d9d3c518cb1d115fa157e0dd8 *man/aggregate_terra.Rd
